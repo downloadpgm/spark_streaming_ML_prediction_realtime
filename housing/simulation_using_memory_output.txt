@@ -1,0 +1,18 @@
+
+spark-shell --packages mysql:mysql-connector-java:5.1.49
+
+SPARK1:
+======
+import org.apache.spark.ml.PipelineModel
+val model = PipelineModel.load("hdfs://hdpmst:9000/model/housing")
+
+import org.apache.spark.sql.types._
+val schema = new StructType(Array(StructField("CRIM",DoubleType,true), StructField("ZN",DoubleType,true), StructField("INDUS",DoubleType,true), StructField("CHAS",DoubleType,true), StructField("NOX",DoubleType,true), StructField("RM",DoubleType,true), StructField("AGE",DoubleType,true), StructField("DIS",DoubleType,true), StructField("RAD",DoubleType,true), StructField("TAX",DoubleType,true), StructField("PTRATIO",DoubleType,true), StructField("B",DoubleType,true), StructField("LSTAT",DoubleType,true), StructField("MEDV",DoubleType,true), StructField("MEDV1",DoubleType,true)))
+
+val streamio = spark.readStream.schema(schema).csv("hdfs://hdpmst:9000/data/stream")
+val pred = model.transform(streamio)
+
+pred.select('MEDV,'prediction).writeStream.format("console").outputMode("append").start()
+---
+pred.select('MEDV,'prediction).writeStream.format("memory").queryName("housing_pred").outputMode("append").start()
+----

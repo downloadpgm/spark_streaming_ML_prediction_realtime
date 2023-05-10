@@ -1,0 +1,31 @@
+
+//SPARK: spark-shell --packages mysql:mysql-connector-java:5.1.49  ( using metastore )
+//       spark-shell --packages mysql:mysql-connector-java:8.0.32  ( using delta lake )
+//======
+
+val df = spark.read.option("inferSchema","true").csv("hdfs://hdpmst:9000/data/housing.data").toDF("CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","RAD","TAX","PTRATIO","B","LSTAT","MEDV")
+val df1 = df.withColumn("label", 'MEDV)
+
+import org.apache.spark.ml.feature.VectorAssembler
+val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","TAX","PTRATIO","B","LSTAT"))
+
+import org.apache.spark.ml.feature.StandardScaler
+val stdScaler = new StandardScaler().
+setWithStd(true).
+setWithMean(true).
+setInputCol("features").
+setOutputCol("scaledFeatures")
+
+import org.apache.spark.ml.regression.LinearRegression
+val lr = new LinearRegression
+lr.setRegParam(0.01).setMaxIter(100).setFitIntercept(true).setFeaturesCol("scaledFeatures")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(va,stdScaler,lr))
+
+//val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
+//trainingData.cache
+//testData.cache
+
+val model = pipeline.fit(df1)
+model.write.save("hdfs://hdpmst:9000/model/housing")

@@ -1,0 +1,32 @@
+
+SPARK1: spark-shell --packages mysql:mysql-connector-java:5.1.49
+======
+
+import org.apache.spark.ml.PipelineModel
+val model = PipelineModel.load("hdfs://hdpmst:9000/model/housing")
+
+import org.apache.spark.sql.types._
+val schema = new StructType(Array(StructField("CRIM",DoubleType,true), StructField("ZN",DoubleType,true), StructField("INDUS",DoubleType,true), StructField("CHAS",DoubleType,true), StructField("NOX",DoubleType,true), StructField("RM",DoubleType,true), StructField("AGE",DoubleType,true), StructField("DIS",DoubleType,true), StructField("RAD",DoubleType,true), StructField("TAX",DoubleType,true), StructField("PTRATIO",DoubleType,true), StructField("B",DoubleType,true), StructField("LSTAT",DoubleType,true), StructField("MEDV",DoubleType,true), StructField("MEDV1",DoubleType,true)))
+
+val streamio = spark.readStream.schema(schema).csv("hdfs://hdpmst:9000/data/stream")
+val pred = model.transform(streamio)
+
+import org.apache.spark.sql.DataFrame
+
+def writePred(df: DataFrame, batchID: Long) {
+   df.write.mode("overwrite").saveAsTable("pred") }  // does not work with format("delta") because Hive does not support
+
+val strqry = pred.select('MEDV,'prediction).writeStream.foreachBatch(writePred _).outputMode("append").option("checkpointLocation","hdfs://hdpmst:9000/data/checkpoint").start()
+
+
+SPARK2: spark-shell --packages mysql:mysql-connector-java:5.1.49
+======
+
+// run ./stream.sh in hdpmst container
+
+spark.sql("show tables").show
+spark.sql("select * from pred").show
+
+// periodically execute command below while stream.sh is running
+spark.sql("refresh table pred").show
+spark.sql("select * from pred").show
