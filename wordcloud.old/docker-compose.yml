@@ -1,0 +1,32 @@
+version: "3.1"
+
+services:
+  spk_mst:
+    image: mkenjis/ubpyspk1_img
+    environment:
+      - SPARK_HOST_SLAVES=spk1,spk2,spk3
+    ports:
+      - 8082:8082
+      - 4040:4040
+      - 8080:8080
+    networks:
+      - mynet
+    depends_on:
+      - spk1,spk2,spk3
+  spk1:
+    image: mkenjis/ubpyspk1_img
+    networks:
+      - mynet
+  spk2:
+    image: mkenjis/ubpyspk1_img
+    networks:
+      - mynet
+  spk3:
+    image: mkenjis/ubpyspk1_img
+    networks:
+      - mynet
+
+networks:
+  mynet:
+    external:
+       name: mynet
