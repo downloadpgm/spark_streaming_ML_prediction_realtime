@@ -1,0 +1,62 @@
+
+val df = spark.read.option("inferSchema","true").csv("hdfs://hdpmst:9000/data/iris.data").toDF("sepal_len","sepal_wdt","petal_len","petal_wdt","specie")
+df: org.apache.spark.sql.DataFrame = [sepal_len: double, sepal_wdt: double ... 3 more fields]
+
+scala> df.printSchemaroot
+ |-- sepal_len: double (nullable = true)
+ |-- sepal_wdt: double (nullable = true)
+ |-- petal_len: double (nullable = true)
+ |-- petal_wdt: double (nullable = true)
+ |-- specie: string (nullable = true)
+ 
+import org.apache.spark.ml.feature.VectorAssembler
+val va = new VectorAssembler().setInputCols(Array("sepal_len","sepal_wdt","petal_len","petal_wdt")).setOutputCol("features")
+
+import org.apache.spark.ml.clustering.KMeans
+val kmeans = new KMeans().setFeaturesCol("features").setK(3).setMaxIter(20)
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(va,kmeans))
+val pipelinemodel = pipeline.fit(df)
+
+val pred = pipelinemodel.transform(df)
+
+pred.show
++---------+---------+---------+---------+-----------+-----------------+----------+
+|sepal_len|sepal_wdt|petal_len|petal_wdt|     specie|         features|prediction|
++---------+---------+---------+---------+-----------+-----------------+----------+
+|      5.1|      3.5|      1.4|      0.2|Iris-setosa|[5.1,3.5,1.4,0.2]|         1|
+|      4.9|      3.0|      1.4|      0.2|Iris-setosa|[4.9,3.0,1.4,0.2]|         1|
+|      4.7|      3.2|      1.3|      0.2|Iris-setosa|[4.7,3.2,1.3,0.2]|         1|
+|      4.6|      3.1|      1.5|      0.2|Iris-setosa|[4.6,3.1,1.5,0.2]|         1|
+|      5.0|      3.6|      1.4|      0.2|Iris-setosa|[5.0,3.6,1.4,0.2]|         1|
+|      5.4|      3.9|      1.7|      0.4|Iris-setosa|[5.4,3.9,1.7,0.4]|         1|
+|      4.6|      3.4|      1.4|      0.3|Iris-setosa|[4.6,3.4,1.4,0.3]|         1|
+|      5.0|      3.4|      1.5|      0.2|Iris-setosa|[5.0,3.4,1.5,0.2]|         1|
+|      4.4|      2.9|      1.4|      0.2|Iris-setosa|[4.4,2.9,1.4,0.2]|         1|
+|      4.9|      3.1|      1.5|      0.1|Iris-setosa|[4.9,3.1,1.5,0.1]|         1|
+|      5.4|      3.7|      1.5|      0.2|Iris-setosa|[5.4,3.7,1.5,0.2]|         1|
+|      4.8|      3.4|      1.6|      0.2|Iris-setosa|[4.8,3.4,1.6,0.2]|         1|
+|      4.8|      3.0|      1.4|      0.1|Iris-setosa|[4.8,3.0,1.4,0.1]|         1|
+|      4.3|      3.0|      1.1|      0.1|Iris-setosa|[4.3,3.0,1.1,0.1]|         1|
+|      5.8|      4.0|      1.2|      0.2|Iris-setosa|[5.8,4.0,1.2,0.2]|         1|
+|      5.7|      4.4|      1.5|      0.4|Iris-setosa|[5.7,4.4,1.5,0.4]|         1|
+|      5.4|      3.9|      1.3|      0.4|Iris-setosa|[5.4,3.9,1.3,0.4]|         1|
+|      5.1|      3.5|      1.4|      0.3|Iris-setosa|[5.1,3.5,1.4,0.3]|         1|
+|      5.7|      3.8|      1.7|      0.3|Iris-setosa|[5.7,3.8,1.7,0.3]|         1|
+|      5.1|      3.8|      1.5|      0.3|Iris-setosa|[5.1,3.8,1.5,0.3]|         1|
++---------+---------+---------+---------+-----------+-----------------+----------+
+only showing top 20 rows
+
+pred.groupBy("specie","prediction").count.show
++---------------+----------+-----+
+|         specie|prediction|count|
++---------------+----------+-----+
+|    Iris-setosa|         1|   50|
+|Iris-versicolor|         2|    2|
+|Iris-versicolor|         0|   48|
+| Iris-virginica|         0|   14|
+| Iris-virginica|         2|   36|
++---------------+----------+-----+
+
+pipelinemodel.write.save("hdfs://hdpmst:9000/model/iris")
