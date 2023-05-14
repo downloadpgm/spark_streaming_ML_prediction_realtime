@@ -1,0 +1,53 @@
+
+import org.apache.spark.sql.types._
+
+val schema = new StructType(Array(StructField("user",IntegerType), StructField("item",IntegerType), StructField("rating",DoubleType), StructField("timestamp",LongType)))
+
+val df = spark.read.option("sep","\t").schema(schema).csv("hdfs://hdpmst:9000/data/u.data")
+
+spark.conf.set("spark.sql.shuffle.partitions",10)
+
+import org.apache.spark.ml.recommendation.ALS
+val als = new ALS().setUserCol("user").setItemCol("item").setRatingCol("rating")
+als.setRank(10).setMaxIter(20)
+
+val alsmodel = als.fit(df)
+
+val pred = alsmodel.transform(df)
+
+pred.show
++----+----+------+---------+----------+                                         
+|user|item|rating|timestamp|prediction|
++----+----+------+---------+----------+
+|  90|  22|   4.0|891384357|  4.426358|
+|  92|  22|   3.0|875653121|  3.876259|
+|  95|  22|   4.0|888953953|   4.24451|
+| 123|  22|   4.0|879809943| 3.0713217|
+| 144|  22|   5.0|888105439|  4.098928|
+| 153|  22|   2.0|881371140| 2.9684942|
+| 288|  22|   5.0|886374286|  4.305998|
+| 307|  22|   3.0|879205470| 3.8398118|
+| 314|  22|   4.0|877889724|   4.71827|
+| 326|  22|   4.0|879874989| 3.8487668|
+| 327|  22|   4.0|887744167| 3.2780108|
+| 330|  22|   5.0|876545532|  5.092625|
+| 339|  22|   5.0|891033735| 3.9939947|
+| 371|  22|   5.0|877487134|  4.774399|
+| 373|  22|   5.0|877098919| 4.3188105|
+| 394|  22|   5.0|880886919| 4.6184425|
+| 411|  22|   4.0|891035239| 4.0655575|
+| 435|  22|   4.0|884131156| 3.9240685|
+| 454|  22|   4.0|881959844| 3.5996137|
+| 496|  22|   4.0|876065259| 3.3626022|
++----+----+------+---------+----------+
+only showing top 20 rows
+
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+val eval = new RegressionEvaluator().setLabelCol("rating").setPredictionCol("prediction")
+
+eval.evaluate(pred)
+res3: Double = 0.7644549674112373
+
+alsmodel.write.save("hdfs://hdpmst:9000/model/movie")
+

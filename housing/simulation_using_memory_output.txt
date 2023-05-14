@@ -7,7 +7,7 @@ import org.apache.spark.ml.PipelineModel
 val model = PipelineModel.load("hdfs://hdpmst:9000/model/housing")
 
 import org.apache.spark.sql.types._
-val schema = new StructType(Array(StructField("CRIM",DoubleType,true), StructField("ZN",DoubleType,true), StructField("INDUS",DoubleType,true), StructField("CHAS",DoubleType,true), StructField("NOX",DoubleType,true), StructField("RM",DoubleType,true), StructField("AGE",DoubleType,true), StructField("DIS",DoubleType,true), StructField("RAD",DoubleType,true), StructField("TAX",DoubleType,true), StructField("PTRATIO",DoubleType,true), StructField("B",DoubleType,true), StructField("LSTAT",DoubleType,true), StructField("MEDV",DoubleType,true), StructField("MEDV1",DoubleType,true)))
+val schema = new StructType(Array(StructField("CRIM",DoubleType), StructField("ZN",DoubleType), StructField("INDUS",DoubleType), StructField("CHAS",DoubleType), StructField("NOX",DoubleType), StructField("RM",DoubleType), StructField("AGE",DoubleType), StructField("DIS",DoubleType), StructField("RAD",DoubleType), StructField("TAX",DoubleType), StructField("PTRATIO",DoubleType), StructField("B",DoubleType), StructField("LSTAT",DoubleType), StructField("MEDV",DoubleType), StructField("MEDV1",DoubleType)))
 
 val streamio = spark.readStream.schema(schema).csv("hdfs://hdpmst:9000/data/stream")
 val pred = model.transform(streamio)
