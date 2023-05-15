@@ -1,0 +1,95 @@
+
+val rdd = sc.textFile("housing.data")
+rdd.take(5)
+
+val rdd1 = rdd.map( x => x.split(",")).map( x => x.map( y => y.toDouble ))
+rdd1.take(5)
+
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+
+val data = rdd1.map( x => {
+  val arr_size = x.size - 1 
+  val l = x(arr_size)   // MEDV
+  val f = Array(x(2),x(4),x(5),x(7),x(9),x(11))   // INDUS, NOX, RM, DIS, TAX, B
+  LabeledPoint(l,Vectors.dense(f))
+})
+data.take(5)
+
+import org.apache.spark.mllib.feature.StandardScaler
+val vectors = data.map(lp => lp.features)
+val scaler = new StandardScaler(withMean = true, withStd = true).fit(vectors)
+val trainScaled = data.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
+
+import org.apache.spark.mllib.regression.LinearRegressionWithSGD
+val model = new LinearRegressionWithSGD
+model.setIntercept(true)
+model.optimizer.setNumIterations(10).setRegParam(0.01)
+val lr = model.run(trainScaled)
+
+lr.predict(trainScaled.map( x => x.features )).take(5)
+res6: Array[Double] = Array(27.631442626917956, 26.202655217990017, 31.970812221109245, 30.826964306912757, 31.998638443244893)
+
+val df = spark.read.option("inferSchema","true").csv("housing.data").toDF("CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","RAD","TAX","PTRATIO","B","LSTAT","MEDV")
+
+df.printSchema
+root
+ |-- CRIM: double (nullable = true)
+ |-- ZN: double (nullable = true)
+ |-- INDUS: double (nullable = true)
+ |-- CHAS: double (nullable = true)
+ |-- NOX: double (nullable = true)
+ |-- RM: double (nullable = true)
+ |-- AGE: double (nullable = true)
+ |-- DIS: double (nullable = true)
+ |-- RAD: double (nullable = true)
+ |-- TAX: double (nullable = true)
+ |-- PTRATIO: double (nullable = true)
+ |-- B: double (nullable = true)
+ |-- LSTAT: double (nullable = true)
+ |-- MEDV: double (nullable = true)
+
+
+val func1 = udf { (v1:Double, v2:Double, v3:Double, v4:Double, v5:Double, v6:Double, lab: Double) => {
+   val f = Vectors.dense(Array(v1,v2,v3,v4,v5,v6))
+   val s = scaler.transform(f)
+   (lab,lr.predict(s)) }}
+
+spark.udf.register("func1",func1)
+
+val test = df.select("INDUS","NOX","RM","DIS","TAX","B","MEDV")
+
+test.createOrReplaceTempView("test")
+
+spark.sql("select func1(*) from test").printSchema
+root
+ |-- UDF(INDUS, NOX, RM, DIS, TAX, B, MEDV): struct (nullable = true)
+ |    |-- _1: double (nullable = false)
+ |    |-- _2: double (nullable = false)
+
+spark.sql("select func1(*) lab_pred from test").show
++--------------------+
+|            lab_pred|
++--------------------+
+|[24.0, 27.6314426...|
+|[21.6, 26.2026552...|
+|[34.7, 31.9708122...|
+|[33.4, 30.8269643...|
+|[36.2, 31.9986384...|
+|[28.7, 26.4846625...|
+|[22.9, 21.4241053...|
+|[27.1, 22.3906323...|
+|[16.5, 18.0129435...|
+|[18.9, 20.5019090...|
+|[15.0, 23.6095638...|
+|[18.9, 20.9524895...|
+|[21.7, 20.4847593...|
+|[20.4, 21.4274442...|
+|[18.2, 22.4644897...|
+|[19.9, 20.6772552...|
+|[23.1, 21.3142347...|
+|[17.5, 21.9017145...|
+|[20.2, 16.6599979...|
+|[18.2, 20.2832842...|
++--------------------+
+only showing top 20 rows

@@ -1,0 +1,89 @@
+
+val rdd = sc.textFile("diabetes.csv")
+rdd.take(5)
+rdd.count
+
+val rdd1 = rdd.filter( x => ! x.contains("Pregnancies"))
+rdd1.take(5)
+rdd1.count
+
+val rdd2 = rdd1.map( x => x.split(",")).map( x => x.map( y => y.toDouble ))
+
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+
+val data = rdd2.map( x => {
+  val arr_size = x.size - 1 
+  val l = x(arr_size)
+  val f = x.slice(0,arr_size)
+  LabeledPoint(l,Vectors.dense(f))
+})
+
+import org.apache.spark.mllib.feature.StandardScaler
+val vectors = data.map(lp => lp.features)
+val scaler = new StandardScaler(withMean = true, withStd = true).fit(vectors)
+val trainScaled = data.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
+
+import org.apache.spark.mllib.classification.LogisticRegressionWithSGD
+val model = new LogisticRegressionWithSGD
+model.optimizer.setNumIterations(100).setStepSize(1.0)
+val lr = model.run(trainScaled)
+
+lr.predict(trainScaled.map( x => x.features )).take(5)
+res15: Array[Double] = Array(1.0, 0.0, 1.0, 0.0, 1.0)
+
+val df = spark.read.option("inferSchema","true").option("header","true").csv("diabetes.csv")
+
+df.printSchema
+root
+ |-- Pregnancies: integer (nullable = true)
+ |-- Glucose: integer (nullable = true)
+ |-- BloodPressure: integer (nullable = true)
+ |-- SkinThickness: integer (nullable = true)
+ |-- Insulin: integer (nullable = true)
+ |-- BMI: double (nullable = true)
+ |-- DiabetesPedigreeFunction: double (nullable = true)
+ |-- Age: integer (nullable = true)
+ |-- Outcome: integer (nullable = true)
+ 
+val func1 = udf { (v1:Double, v2:Double, v3:Double, v4:Double, v5:Double, v6:Double, v7:Double, v8:Double, lab: Double) => {
+    val f = Vectors.dense(Array(v1,v2,v3,v4,v5,v6,v7,v8))
+    val s = scaler.transform(f)
+    (lab,lr.predict(s)) }}
+
+spark.udf.register("func1",func1)
+
+df.createOrReplaceTempView("test")
+
+spark.sql("select func1(*) from test").printSchema
+root
+ |-- UDF(cast(Pregnancies as double), cast(Glucose as double), cast(BloodPressure as double), cast(SkinThickness as double), cast(Insulin as double), BMI, DiabetesPedigreeFunction, cast(Age as double), cast(Outcome as double)): struct (nullable = true)
+ |    |-- _1: double (nullable = false)
+ |    |-- _2: double (nullable = false)
+
+spark.sql("select func1(*) lab_pred from test").show
++----------+
+|  lab_pred|
++----------+
+|[1.0, 1.0]|
+|[0.0, 0.0]|
+|[1.0, 1.0]|
+|[0.0, 0.0]|
+|[1.0, 1.0]|
+|[0.0, 0.0]|
+|[1.0, 0.0]|
+|[0.0, 1.0]|
+|[1.0, 1.0]|
+|[1.0, 0.0]|
+|[0.0, 0.0]|
+|[1.0, 1.0]|
+|[0.0, 1.0]|
+|[1.0, 1.0]|
+|[1.0, 1.0]|
+|[1.0, 1.0]|
+|[1.0, 1.0]|
+|[1.0, 0.0]|
+|[0.0, 1.0]|
+|[1.0, 0.0]|
++----------+
+only showing top 20 rows

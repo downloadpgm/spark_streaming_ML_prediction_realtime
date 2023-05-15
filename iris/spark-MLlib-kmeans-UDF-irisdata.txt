@@ -1,0 +1,103 @@
+
+val rdd = sc.textFile("iris.data")
+rdd.take(5)
+
+val rdd1 = rdd.map( x => x.split(","))
+rdd1.take(5)
+
+import org.apache.spark.mllib.linalg.Vectors
+val rdd2 = rdd1.map( x => Vectors.dense(x(0).toDouble,x(1).toDouble,x(2).toDouble,x(3).toDouble))
+rdd2.take(5)
+
+import org.apache.spark.mllib.clustering.KMeans
+val model = KMeans.train(rdd2,3,10,3)
+val pred = model.predict(rdd2)
+ 
+pred.take(5)
+res6: Array[Int] = Array(1, 1, 1, 1, 1)
+
+val func1 = udf { (v1:Double, v2:Double, v3:Double, v4:Double) => {
+   val f = Vectors.dense(Array(v1,v2,v3,v4))
+   model.predict(f)
+ }}
+
+spark.udf.register("func1",func1)
+
+val df = spark.read.option("inferSchema","true").csv("iris.data").toDF("cp1","cp2","cp3","cp4","specie")
+
+df.printSchema
+root
+ |-- cp1: double (nullable = true)
+ |-- cp2: double (nullable = true)
+ |-- cp3: double (nullable = true)
+ |-- cp4: double (nullable = true)
+ |-- specie: string (nullable = true)
+
+
+df.show
++---+---+---+---+-----------+
+|cp1|cp2|cp3|cp4|     specie|
++---+---+---+---+-----------+
+|5.1|3.5|1.4|0.2|Iris-setosa|
+|4.9|3.0|1.4|0.2|Iris-setosa|
+|4.7|3.2|1.3|0.2|Iris-setosa|
+|4.6|3.1|1.5|0.2|Iris-setosa|
+|5.0|3.6|1.4|0.2|Iris-setosa|
+|5.4|3.9|1.7|0.4|Iris-setosa|
+|4.6|3.4|1.4|0.3|Iris-setosa|
+|5.0|3.4|1.5|0.2|Iris-setosa|
+|4.4|2.9|1.4|0.2|Iris-setosa|
+|4.9|3.1|1.5|0.1|Iris-setosa|
+|5.4|3.7|1.5|0.2|Iris-setosa|
+|4.8|3.4|1.6|0.2|Iris-setosa|
+|4.8|3.0|1.4|0.1|Iris-setosa|
+|4.3|3.0|1.1|0.1|Iris-setosa|
+|5.8|4.0|1.2|0.2|Iris-setosa|
+|5.7|4.4|1.5|0.4|Iris-setosa|
+|5.4|3.9|1.3|0.4|Iris-setosa|
+|5.1|3.5|1.4|0.3|Iris-setosa|
+|5.7|3.8|1.7|0.3|Iris-setosa|
+|5.1|3.8|1.5|0.3|Iris-setosa|
++---+---+---+---+-----------+
+only showing top 20 rows
+
+df.createOrReplaceTempView("test")
+
+spark.sql("select specie,func1(cp1,cp2,cp3,cp4) from test").show
++-----------+-----------------------+
+|     specie|UDF(cp1, cp2, cp3, cp4)|
++-----------+-----------------------+
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
+|Iris-setosa|                      1|
++-----------+-----------------------+
+only showing top 20 rows
+
+
+spark.sql("select specie,func1(cp1,cp2,cp3,cp4) from test").distinct.show
++---------------+-----------------------+                                       
+|         specie|UDF(cp1, cp2, cp3, cp4)|
++---------------+-----------------------+
+|    Iris-setosa|                      1|
+|Iris-versicolor|                      2|
+|Iris-versicolor|                      0|
+| Iris-virginica|                      0|
+| Iris-virginica|                      2|
++---------------+-----------------------+
