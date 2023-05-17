@@ -1,0 +1,32 @@
+
+SPARK1: spark-shell --packages mysql:mysql-connector-java:8.0.32,io.delta:delta-core_2.12:0.7.0
+======
+
+import org.apache.spark.ml.PipelineModel
+val model = PipelineModel.load("hdfs://hdpmst:9000/model/diabetes")
+
+import org.apache.spark.sql.types._
+val schema = new StructType(Array(StructField("Pregnancies",IntegerType), StructField("Glucose",IntegerType), StructField("BloodPressure",IntegerType), StructField("SkinThickness",IntegerType), StructField("Insulin",IntegerType), StructField("BMI",DoubleType,true), StructField("DiabetesPedigreeFunction",DoubleType), StructField("Age",IntegerType), StructField("Outcome",IntegerType)))
+
+val streamio = spark.readStream.schema(schema).csv("hdfs://hdpmst:9000/data/stream")
+val pred = model.transform(streamio)
+
+import org.apache.spark.sql.DataFrame
+
+def writePred(df: DataFrame, batchID: Long) {
+   df.write.mode("overwrite").format("delta").save("hdfs://hdpmst:9000/data/pred") }  // overwrite using format("delta") 
+
+val strqry = pred.select('Age,'Outcome,'prediction).writeStream.foreachBatch(writePred _).outputMode("append").option("checkpointLocation","hdfs://hdpmst:9000/data/checkpoint").start()
+
+
+SPARK2: spark-shell --packages mysql:mysql-connector-java:8.0.32,io.delta:delta-core_2.12:0.7.0
+======
+
+// run ./stream.sh in hdpmst container
+
+val df = spark.read.format("delta").load("hdfs://hdpmst:9000/data/pred")
+
+df.createOrReplaceTempView("pred")
+
+// periodically execute command below while stream.sh is running
+spark.sql("select * from pred").show

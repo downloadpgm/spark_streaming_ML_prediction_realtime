@@ -1,3 +1,5 @@
+SPARK1: spark-shell --packages mysql:mysql-connector-java:8.0.32
+======
 
 val df = spark.read.option("inferSchema","true").csv("hdfs://hdpmst:9000/data/iris.data").toDF("sepal_len","sepal_wdt","petal_len","petal_wdt","specie")
 df: org.apache.spark.sql.DataFrame = [sepal_len: double, sepal_wdt: double ... 3 more fields]
