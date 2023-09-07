@@ -1,6 +1,7 @@
 
 SPARK1: spark-shell --packages mysql:mysql-connector-java:8.0.32,io.delta:delta-core_2.12:0.7.0
 ======
+spark.conf.set("spark.sql.shuffle.partitions",10)
 
 import org.apache.spark.ml.recommendation.ALSModel
 val model = ALSModel.load("hdfs://hdpmst:9000/model/movie")
@@ -8,7 +9,7 @@ val model = ALSModel.load("hdfs://hdpmst:9000/model/movie")
 import org.apache.spark.sql.types._
 val schema = new StructType(Array(StructField("user",IntegerType), StructField("item",IntegerType), StructField("rating",DoubleType), StructField("timestamp",LongType)))
 
-val streamio = spark.readStream.option("sep","\t").schema(schema).csv("hdfs://hdpmst:9000/data/stream")
+val streamio = spark.readStream.option("sep","\t").schema(schema).option("maxFilesPerTrigger",1).csv("hdfs://hdpmst:9000/data/stream")
 val pred = model.transform(streamio)
 
 import org.apache.spark.sql.DataFrame
@@ -23,6 +24,8 @@ SPARK2: spark-shell --packages mysql:mysql-connector-java:8.0.32,io.delta:delta-
 ======
 
 // run ./stream.sh in hdpmst container
+
+spark.conf.set("spark.sql.shuffle.partitions",10)
 
 val df = spark.read.format("delta").load("hdfs://hdpmst:9000/data/pred")
 

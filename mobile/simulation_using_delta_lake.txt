@@ -1,0 +1,36 @@
+
+SPARK1: spark-shell --packages mysql:mysql-connector-java:8.0.32,io.delta:delta-core_2.12:0.7.0
+======
+
+spark.conf.set("spark.sql.shuffle.partitions",10)
+
+import org.apache.spark.ml.PipelineModel
+val model = PipelineModel.load("hdfs://hdpmst:9000/model/mobile")
+
+import org.apache.spark.sql.types._
+val schema = new StructType(Array(StructField("id",IntegerType),StructField("battery_power",DoubleType), StructField("blue",DoubleType), StructField("clock_speed",DoubleType), StructField("dual_sim",DoubleType), StructField("fc",DoubleType), StructField("four_g",DoubleType), StructField("int_memory",DoubleType), StructField("m_dep",DoubleType), StructField("mobile_wt",DoubleType), StructField("n_cores",DoubleType), StructField("pc",DoubleType), StructField("px_height",DoubleType), StructField("px_width",DoubleType), StructField("ram",DoubleType), StructField("sc_h",DoubleType), StructField("sc_w",DoubleType), StructField("talk_time",DoubleType), StructField("three_g",DoubleType), StructField("touch_screen",DoubleType), StructField("wifi",DoubleType)))
+
+val streamio = spark.readStream.schema(schema).option("maxFilesPerTrigger",1).csv("hdfs://hdpmst:9000/data/stream")
+val pred = model.transform(streamio)
+
+import org.apache.spark.sql.DataFrame
+
+def writePred(df: DataFrame, batchID: Long) {
+   df.write.mode("overwrite").format("delta").save("hdfs://hdpmst:9000/data/pred") }  // overwrite using format("delta") 
+
+val strqry = pred.select('label,'prediction).writeStream.foreachBatch(writePred _).outputMode("append").option("overwriteSchema", "true").option("checkpointLocation","hdfs://hdpmst:9000/data/checkpoint").start()
+
+
+SPARK2: spark-shell --packages mysql:mysql-connector-java:8.0.32,io.delta:delta-core_2.12:0.7.0
+======
+
+// run ./stream.sh in hdpmst container
+
+spark.conf.set("spark.sql.shuffle.partitions",10)
+
+val df = spark.read.format("delta").load("hdfs://hdpmst:9000/data/pred")
+
+df.createOrReplaceTempView("pred")
+
+// periodically execute command below while stream.sh is running
+spark.sql("select * from pred").show

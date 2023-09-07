@@ -2,13 +2,15 @@
 SPARK1: spark-shell --packages mysql:mysql-connector-java:8.0.32,io.delta:delta-core_2.12:0.7.0
 ======
 
+spark.conf.set("spark.sql.shuffle.partitions",10)
+
 import org.apache.spark.ml.PipelineModel
 val model = PipelineModel.load("hdfs://hdpmst:9000/model/adult")
 
 import org.apache.spark.sql.types._
 val schema = new StructType(Array(StructField("age",IntegerType,true), StructField("workclass",StringType), StructField("fnlwgt",DoubleType), StructField("education",StringType), StructField("education-num",DoubleType), StructField("marital_status",StringType), StructField("occupation",StringType), StructField("relationship",StringType), StructField("race",StringType), StructField("sex",StringType), StructField("capital_gain",DoubleType), StructField("capital_loss",DoubleType), StructField("hours_per_week",DoubleType), StructField("native_country",StringType), StructField("income",StringType)))
 
-val streamio = spark.readStream.schema(schema).csv("hdfs://hdpmst:9000/data/stream")
+val streamio = spark.readStream.schema(schema).option("maxFilesPerTrigger",1).csv("hdfs://hdpmst:9000/data/stream")
 val pred = model.transform(streamio)
 
 import org.apache.spark.sql.DataFrame
@@ -16,7 +18,7 @@ import org.apache.spark.sql.DataFrame
 def writePred(df: DataFrame, batchID: Long) {
    df.write.mode("overwrite").format("delta").save("hdfs://hdpmst:9000/data/pred") }  // overwrite using format("delta") 
 
-val strqry = pred.select('age,'label,'prediction).writeStream.foreachBatch(writePred _).outputMode("append").option("overwriteSchema", "true").option("checkpointLocation","hdfs://hdpmst:9000/data/checkpoint").start()
+val strqry = pred.select('age,'sex,'label,'prediction).writeStream.foreachBatch(writePred _).outputMode("append").option("overwriteSchema", "true").option("checkpointLocation","hdfs://hdpmst:9000/data/checkpoint").start()
 
 
 SPARK2: spark-shell --packages mysql:mysql-connector-java:8.0.32,io.delta:delta-core_2.12:0.7.0
@@ -24,9 +26,15 @@ SPARK2: spark-shell --packages mysql:mysql-connector-java:8.0.32,io.delta:delta-
 
 // run ./stream.sh in hdpmst container
 
+spark.conf.set("spark.sql.shuffle.partitions",10)
+
 val df = spark.read.format("delta").load("hdfs://hdpmst:9000/data/pred")
 
 df.createOrReplaceTempView("pred")
 
 // periodically execute command below while stream.sh is running
-spark.sql("select * from pred").show
+for (i <- 1 to 200) {
+   println(i); 
+   spark.sql("select * from pred").show;
+   Thread.sleep(10000)
+}

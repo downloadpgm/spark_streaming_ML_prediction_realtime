@@ -17,7 +17,7 @@ object FileStreamML {
 
     val schema = new StructType(Array(StructField("age",IntegerType,true), StructField("workclass",StringType), StructField("fnlwgt",DoubleType), StructField("education",StringType), StructField("education-num",DoubleType), StructField("marital_status",StringType), StructField("occupation",StringType), StructField("relationship",StringType), StructField("race",StringType), StructField("sex",StringType), StructField("capital_gain",DoubleType), StructField("capital_loss",DoubleType), StructField("hours_per_week",DoubleType), StructField("native_country",StringType), StructField("income",StringType)))
 
-    val streamio = spark.readStream.schema(schema).csv("hdfs://hdpmst:9000/data/stream")
+    val streamio = spark.readStream.schema(schema).option("maxFilesPerTrigger",1).csv("hdfs://hdpmst:9000/data/stream")
     val pred = model.transform(streamio)
 
     def writePred(df: DataFrame, batchID: Long) {

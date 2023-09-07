@@ -3,7 +3,7 @@ SPARK1: spark-shell --packages mysql:mysql-connector-java:8.0.32
 
 spark.conf.set("spark.sql.shuffle.partitions",10)
 
-val dfraw = spark.read.format("csv").option("inferSchema","true").load("hdfs://hdpmst:9000/data/adult.data").toDF("age","workclass","fnlwgt","education","education-num","marital_status","occupation","relationship","race","sex","capital_gain","capital_loss","hours_per_week","native_country","income")
+val df = spark.read.format("csv").option("inferSchema","true").load("hdfs://hdpmst:9000/data/adult.data").toDF("age","workclass","fnlwgt","education","education-num","marital_status","occupation","relationship","race","sex","capital_gain","capital_loss","hours_per_week","native_country","income")
 
 import org.apache.spark.ml.feature.SQLTransformer
 
@@ -30,7 +30,7 @@ setOutputCol("scaledFeatures")
 import org.apache.spark.ml.classification.LogisticRegression
 val lr = new LogisticRegression().setFeaturesCol("scaledFeatures")
 
-val Array(trainingData, testData) = dfraw.randomSplit(Array(0.7,0.3),11L)
+val Array(trainingData, testData) = df.randomSplit(Array(0.7,0.3),11L)
 
 trainingData.cache
 testData.cache
@@ -63,6 +63,6 @@ metrics.confusionMatrix
 6953.0  542.0
 898.0   1408.0
 
-val pipelinemodel = pipeline.fit(dfraw)
+val pipelinemodel = pipeline.fit(df)
 pipelinemodel.write.save("hdfs://hdpmst:9000/model/adult")
 

@@ -1,0 +1,50 @@
+
+//SPARK: spark-shell --packages mysql:mysql-connector-java:8.0.32  ( using delta lake )
+//======
+
+val df = spark.read.format("csv").option("header","true").option("inferSchema","true").load("staging/mobile_pricing_train.csv")
+
+val types = df.dtypes
+
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
+
+val df1 = df.select(types.map{ case(c,t) => col(c).cast(DoubleType)}: _*).
+          withColumn("label", 'price_range)
+
+spark.conf.set("spark.sql.shuffle.partitions",10)
+ 
+import org.apache.spark.ml.feature.VectorAssembler
+val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("battery_power","int_memory","mobile_wt","px_height","px_width","ram")).setHandleInvalid("skip")
+
+import org.apache.spark.ml.feature.StandardScaler
+val stdScaler = new StandardScaler().
+setWithStd(true).
+setWithMean(true).
+setInputCol("features").
+setOutputCol("scaledFeatures")
+
+import org.apache.spark.ml.classification.{LogisticRegression,OneVsRest}
+val lr = new LogisticRegression().setFitIntercept(true).setFamily("binomial").setFeaturesCol("scaledFeatures")
+
+val ovr = new OneVsRest().setClassifier(lr)
+
+import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
+
+val paramGrid = new ParamGridBuilder().
+addGrid(lr.regParam, Array(0.1, 0.01, 0.001)).
+addGrid(lr.fitIntercept, Array(true)).
+addGrid(lr.maxIter, Array(10,20,40,100)).build()
+
+import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
+
+val cv = new CrossValidator().
+setEstimator(ovr).
+setEvaluator(new MulticlassClassificationEvaluator).
+setEstimatorParamMaps(paramGrid).
+setNumFolds(3)
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(va,stdScaler,cv))
+
+val pipelinemodel = pipeline.fit(df1)

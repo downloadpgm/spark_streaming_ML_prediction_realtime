@@ -46,24 +46,25 @@ root
  |-- Age: integer (nullable = true)
  |-- Outcome: integer (nullable = true)
  
-val func1 = udf { (v1:Double, v2:Double, v3:Double, v4:Double, v5:Double, v6:Double, v7:Double, v8:Double, lab: Double) => {
-    val f = Vectors.dense(Array(v1,v2,v3,v4,v5,v6,v7,v8))
-    val s = scaler.transform(f)
-    (lab,lr.predict(s)) }}
+def func1 = ( arr: Seq[Double] ) => { 
+  val f = Vectors.dense(arr.toArray.slice(0,arr.size-1))
+  val lab = arr(arr.size-1)
+  val s = scaler.transform(f)
+  (lab,lr.predict(s)) }
 
 spark.udf.register("func1",func1)
 
 df.createOrReplaceTempView("test")
 
-spark.sql("select func1(*) from test").printSchema
+spark.sql("select func1(array(*)) pred from test").printSchema
 root
- |-- UDF(cast(Pregnancies as double), cast(Glucose as double), cast(BloodPressure as double), cast(SkinThickness as double), cast(Insulin as double), BMI, DiabetesPedigreeFunction, cast(Age as double), cast(Outcome as double)): struct (nullable = true)
+ |-- pred: struct (nullable = true)
  |    |-- _1: double (nullable = false)
  |    |-- _2: double (nullable = false)
 
-spark.sql("select func1(*) lab_pred from test").show
+spark.sql("select func1(array(*)) pred from test").show
 +----------+
-|  lab_pred|
+|      pred|
 +----------+
 |[1.0, 1.0]|
 |[0.0, 0.0]|

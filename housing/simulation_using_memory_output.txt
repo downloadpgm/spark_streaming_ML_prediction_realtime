@@ -9,7 +9,7 @@ val model = PipelineModel.load("hdfs://hdpmst:9000/model/housing")
 import org.apache.spark.sql.types._
 val schema = new StructType(Array(StructField("CRIM",DoubleType), StructField("ZN",DoubleType), StructField("INDUS",DoubleType), StructField("CHAS",DoubleType), StructField("NOX",DoubleType), StructField("RM",DoubleType), StructField("AGE",DoubleType), StructField("DIS",DoubleType), StructField("RAD",DoubleType), StructField("TAX",DoubleType), StructField("PTRATIO",DoubleType), StructField("B",DoubleType), StructField("LSTAT",DoubleType), StructField("MEDV",DoubleType), StructField("MEDV1",DoubleType)))
 
-val streamio = spark.readStream.schema(schema).csv("hdfs://hdpmst:9000/data/stream")
+val streamio = spark.readStream.schema(schema).option("maxFilesPerTrigger",1).csv("hdfs://hdpmst:9000/data/stream")
 val pred = model.transform(streamio)
 
 pred.select('MEDV,'prediction).writeStream.format("console").outputMode("append").start()

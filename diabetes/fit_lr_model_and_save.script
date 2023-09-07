@@ -27,7 +27,7 @@ df.describe().show
 +-------+------------------+-----------------+------------------+------------------+------------------+------------------+------------------------+------------------+------------------+
 
 import org.apache.spark.ml.feature.VectorAssembler
-val va = new VectorAssembler().setOutputCol("features").setInputCols(df.columns.diff(Array("Outcome"))).setHandleInvalid("skip")
+val va = new VectorAssembler().setOutputCol("features").setInputCols(df.columns.diff(Array("Outcome")))
 
 import org.apache.spark.ml.feature.StandardScaler
 val stdScaler = new StandardScaler().

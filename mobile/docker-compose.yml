@@ -32,7 +32,7 @@ services:
     deploy:
       placement:
         constraints:
-          - node.labels.hostlabel == hdp1
+          - node.labels.hostlabel == hdp3
       replicas: 1
     networks:
       - mynet

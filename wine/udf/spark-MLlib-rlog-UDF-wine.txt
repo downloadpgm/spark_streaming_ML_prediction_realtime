@@ -1,0 +1,116 @@
+val rdd = sc.textFile("winequality-white.csv")
+rdd.take(5)
+
+val rdd1 = rdd.filter( x => ! x.contains("quality"))
+rdd1.take(5)
+
+val rdd2 = rdd1.map( x => x.split(";")).map( x => x.map( y => y.toDouble ))
+rdd2.take(5)
+
+rdd2.map( x => x(x.size - 1)).distinct.take(10)
+res8: Array[Double] = Array(9.0, 5.0, 6.0, 7.0, 3.0, 8.0, 4.0)
+
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+
+val data = rdd2.map( x => {
+   val arr_size = x.size - 1
+   val l = x(arr_size) - 3.0
+   val f = x.slice(0,9)
+   LabeledPoint(l,Vectors.dense(f))
+})
+data.take(5)
+
+import org.apache.spark.mllib.feature.StandardScaler
+val vectors = data.map(lp => lp.features)
+val scaler = new StandardScaler(withMean = true, withStd = true).fit(vectors)
+val trainScaled = data.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
+
+import org.apache.spark.mllib.classification.LogisticRegressionWithLBFGS
+val model = new LogisticRegressionWithLBFGS().setNumClasses(7)
+val lr = model.run(trainScaled)
+
+lr.predict(trainScaled.map( x => x.features )).take(5)
+res9: Array[Double] = Array(2.0, 2.0, 1.0, 3.0, 3.0)
+
+val df = spark.read.option("sep",";").option("inferSchema","true").option("header","true").csv("winequality-white.csv")
+
+df.printSchema
+root
+ |-- fixed acidity: double (nullable = true)
+ |-- volatile acidity: double (nullable = true)
+ |-- citric acid: double (nullable = true)
+ |-- residual sugar: double (nullable = true)
+ |-- chlorides: double (nullable = true)
+ |-- free sulfur dioxide: double (nullable = true)
+ |-- total sulfur dioxide: double (nullable = true)
+ |-- density: double (nullable = true)
+ |-- pH: double (nullable = true)
+ |-- sulphates: double (nullable = true)
+ |-- alcohol: double (nullable = true)
+ |-- quality: integer (nullable = true)
+ 
+val func1 = udf { (v1:Double, v2:Double, v3:Double, v4:Double, v5:Double, v6:Double, v7:Double, v8:Double, v9:Double, lab: Double) => {
+   val f = Vectors.dense(Array(v1,v2,v3,v4,v5,v6,v7,v8,v9))
+   val s = scaler.transform(f)
+   (lab-3.0,lr.predict(s)) }}
+
+spark.udf.register("func1",func1)
+
+val test = df.drop("sulphates","alcohol")
+
+test.createOrReplaceTempView("test")
+
+spark.sql("select func1(*) from test").printSchema
+root
+ |-- UDF(fixed acidity, volatile acidity, citric acid, residual sugar, chlorides, free sulfur dioxide, total sulfur dioxide, density, pH, cast(quality as double)): struct (nullable = true)
+ |    |-- _1: double (nullable = false)
+ |    |-- _2: double (nullable = false) 
+
+spark.sql("select func1(*) lab_pred from test").show
++----------+
+|  lab_pred|
++----------+
+|[3.0, 2.0]|
+|[3.0, 2.0]|
+|[3.0, 1.0]|
+|[3.0, 3.0]|
+|[3.0, 3.0]|
+|[3.0, 1.0]|
+|[3.0, 2.0]|
+|[3.0, 2.0]|
+|[3.0, 2.0]|
+|[3.0, 2.0]|
+|[2.0, 4.0]|
+|[2.0, 2.0]|
+|[2.0, 4.0]|
+|[4.0, 4.0]|
+|[2.0, 2.0]|
+|[4.0, 3.0]|
+|[3.0, 2.0]|
+|[5.0, 1.0]|
+|[3.0, 1.0]|
+|[2.0, 2.0]|
++----------+
+only showing top 20 rows
+
+spark.sql("select func1(*) lab_pred from test").select($"lab_pred._1",$"lab_pred._2").rdd.map( x => (x.getDouble(0),x.getDouble(1))).take(5)
+res32: Array[(Double, Double)] = Array((3.0,2.0), (3.0,2.0), (3.0,1.0), (3.0,3.0), (3.0,3.0))
+
+val pred = spark.sql("select func1(*) lab_pred from test").select($"lab_pred._1",$"lab_pred._2").rdd.map( x => (x.getDouble(0),x.getDouble(1)))
+
+import org.apache.spark.mllib.evaluation.MulticlassMetrics
+val metrics = new MulticlassMetrics(pred)
+
+metrics.accuracy
+res33: Double = 0.43875051041241325
+
+metrics.confusionMatrix
+res34: org.apache.spark.mllib.linalg.Matrix =
+1.0  0.0    0.0     0.0    0.0    0.0    0.0
+1.0  23.0   75.0    82.0   26.0   5.0    0.0
+8.0  116.0  1034.0  789.0  107.0  20.0   0.0
+4.0  8.0    194.0   543.0  193.0  15.0   0.0
+6.0  16.0   146.0   754.0  548.0  135.0  5.0
+0.0  0.0    8.0     30.0   5.0    0.0    0.0
+0.0  0.0    0.0     0.0    1.0    0.0    0.0
